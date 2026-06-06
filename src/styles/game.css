@@ -1,0 +1,272 @@
+/**
+ * game.css
+ *
+ * Styles for the game shell, canvas, and HUD overlay.
+ * No Tailwind — pure CSS per project spec.
+ * Mobile-first: all defaults target narrow screens.
+ */
+
+/* ── Root game container ────────────────────────────────────────────────────── */
+
+#game-page {
+  position: fixed;
+  inset: 0;                  /* fills the entire viewport */
+  overflow: hidden;
+  background: #E8E4DC;       /* matches Renderer background so no flash */
+  touch-action: none;        /* disable browser pan/zoom on the game surface */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ── Canvas ─────────────────────────────────────────────────────────────────── */
+
+#game-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  /* Pixel buffer set by Renderer via ResizeObserver + devicePixelRatio */
+}
+
+/* ── HUD overlay ─────────────────────────────────────────────────────────────  */
+
+#hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;      /* pass touch/click through to canvas by default */
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto 1fr auto;
+  grid-template-areas:
+    "top-left  top-right"
+    "mid-left  mid-right"
+    "bot-left  bot-right";
+  padding: 12px;
+  gap: 8px;
+}
+
+/* ── HUD panels ──────────────────────────────────────────────────────────────  */
+
+.hud-panel {
+  pointer-events: auto;       /* re-enable for interactive HUD elements */
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+#hud-top-left {
+  grid-area: top-left;
+  justify-content: flex-start;
+}
+
+#hud-top-right {
+  grid-area: top-right;
+  justify-content: flex-end;
+}
+
+.hud-center {
+  grid-area: mid-left / mid-left / mid-right / mid-right;
+  display: flex;
+  justify-content: center;
+  align-self: center;
+  pointer-events: auto;
+}
+
+.hud-bottom-left {
+  grid-area: bot-left;
+  align-items: flex-end;
+  justify-content: flex-start;
+}
+
+/* ── HUD text / label ─────────────────────────────────────────────────────── */
+
+/* Vertical stack inside top-left panel */
+#hud-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+/* Horizontal row: timer + compass + distance */
+#hud-nav-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* Compass arrow — rotated via inline style in React */
+#hud-compass {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  font-size: 14px;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.38);
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  transition: transform 0.25s ease;  /* smooth rotation */
+  flex-shrink: 0;
+}
+
+/* Objective label */
+.hud-label {
+  font-family: system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1a1a1a;
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  transition: background 0.3s ease;
+}
+
+.hud-label--complete {
+  background: rgba(39, 174, 96, 0.85);
+  color: #fff;
+  border-color: rgba(39, 174, 96, 0.6);
+}
+
+/* ── Complete delivery banner ─────────────────────────────────────────────── */
+
+#hud-complete {
+  font-family: system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(39, 174, 96, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  padding: 8px 18px;
+  border-radius: 20px;
+  letter-spacing: 0.5px;
+  animation: pop-in 0.3s ease;
+}
+
+@keyframes pop-in {
+  from { transform: scale(0.7); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}
+
+.hud-badge {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: #444;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  letter-spacing: 0.5px;
+}
+
+/* ── HUD buttons ─────────────────────────────────────────────────────────── */
+
+.hud-btn {
+  font-family: system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a1a1a;
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.1s ease;
+  /* Allow touch events on this element */
+  touch-action: manipulation;
+}
+
+.hud-btn:active {
+  background: rgba(255, 255, 255, 0.95);
+  transform: scale(0.96);
+}
+
+/* ── "Deciding" banner ────────────────────────────────────────────────────── */
+
+#hud-deadend {
+  font-family: system-ui, sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(180, 40, 40, 0.7);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  padding: 8px 18px;
+  border-radius: 20px;
+  letter-spacing: 0.5px;
+}
+
+/* ── Touch controls ────────────────────────────────────────────────────────── */
+
+#touch-controls {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;   /* children opt-in via pointer-events: auto */
+  z-index: 10;
+}
+
+/* Right-side vertical group: ↑ / ↓ */
+#touch-throttle {
+  position: absolute;
+  right: 20px;
+  bottom: 90px;           /* sits above the steer group on small screens */
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: auto;
+}
+
+/* Bottom-center horizontal group: ← / → */
+#touch-steer {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 14px;
+  pointer-events: auto;
+}
+
+/* Individual button */
+.touch-btn {
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  /* Visual */
+  background: rgba(0, 0, 0, 0.28);
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-radius: 14px;
+  color: rgba(255, 255, 255, 0.90);
+  font-size: 18px;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+
+  /* Interaction */
+  cursor: pointer;
+  touch-action: none;             /* prevent browser scroll/zoom on button */
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+
+  /* Transition */
+  transition: background 0.08s ease, transform 0.08s ease, border-color 0.08s ease;
+}
+
+/* Pressed state — CSS :active handles touch on supported browsers */
+.touch-btn:active {
+  background: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.75);
+  transform: scale(0.90);
+}
