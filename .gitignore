@@ -7,10 +7,25 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
-*.local
+# ==========================================
+# Frontend (React / Vite na pasta web)
+# ==========================================
+web/node_modules/
+web/dist/
+web/dist-ssr/
+web/*.local
+
+# ==========================================
+# Backend (Python / FastAPI na pasta api)
+# ==========================================
+api/__pycache__/
+api/*.py[cod]
+api/*$py.class
+api/.venv/
+api/venv/
+api/ENV/
+api/env/
+api/.env
 
 # Editor directories and files
 .vscode/*
