@@ -8,17 +8,28 @@
  *   - AudioManager (pickup bip, delivery chord)
  *   - Haptic feedback on objective state transitions
  *   - Bearing + distance to current objective emitted to HUD
+ *
+ * Phase 2 additions:
+ *   - Two-phase init: lightweight ctor + async init(graphData)
+ *   - Static loadFromAPI(lat, lng) with 20s timeout
+ *   - Dynamic start node via getNearestNode(worldCentre, worldCentre)
+ *   - Fallback to mock grid when graphData = null
  */
 
-import { GraphManager }   from './GraphManager.js';
-import { GameLoop }       from './GameLoop.js';
-import { Camera }         from './Camera.js';
-import { Renderer }       from './Renderer.js';
-import { InputManager }   from './InputManager.js';
-import { Vehicle }        from './Vehicle.js';
-import { GameObjective }  from './GameObjective.js';
-import { AudioManager }   from './AudioManager.js';
-import { CENTER_NODE_ID } from '../data/mockGraph.js';
+import { GraphManager }  from './GraphManager.js';
+import { GameLoop }      from './GameLoop.js';
+import { Camera }        from './Camera.js';
+import { Renderer }      from './Renderer.js';
+import { InputManager }  from './InputManager.js';
+import { Vehicle }       from './Vehicle.js';
+import { GameObjective } from './GameObjective.js';
+import { AudioManager }  from './AudioManager.js';
+
+// ── API config — change this to the production URL when deploying ─────────────
+const API_URL = 'http://localhost:8000';
+
+/** World size of the mock grid (used when falling back to offline mode). */
+const MOCK_WORLD_SIZE = 580;
 
 const COMPLETE_FLASH_DURATION = 2.0;  // seconds
 
@@ -28,7 +39,50 @@ const TRAIL_SAMPLE_DIST = 6;
 const TRAIL_MAX_POINTS  = 30;
 
 export class MiniDeliveryGame {
+  // ─── Phase 2: Static API loader ─────────────────────────────────────────────
+
   /**
+   * Fetch map data from the backend for a given position.
+   * Rejects with a user-facing Error message on any failure.
+   *
+   * @param {number} lat
+   * @param {number} lng
+   * @returns {Promise<object>} parsed graph JSON
+   */
+  static async loadFromAPI(lat, lng) {
+    const controller = new AbortController();
+    const timeoutId  = setTimeout(() => controller.abort(), 20_000);
+
+    let res;
+    try {
+      res = await fetch(`${API_URL}/generate-map`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ lat, lng }),
+        signal:  controller.signal,
+      });
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        throw new Error('Não foi possível carregar o mapa. Tente novamente.');
+      }
+      throw new Error('Não foi possível carregar o mapa. Tente novamente.');
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.detail ?? `Erro do servidor (${res.status}).`);
+    }
+
+    return res.json();
+  }
+
+  // ─── Phase 2: Async init ─────────────────────────────────────────────────────
+
+  /**
+   * Lightweight constructor — sub-systems are built in init().
+   *
    * @param {HTMLCanvasElement} canvas
    * @param {(state: object) => void} onStateUpdate
    */
@@ -36,49 +90,68 @@ export class MiniDeliveryGame {
     this._canvas        = canvas;
     this._onStateUpdate = onStateUpdate ?? (() => {});
 
-    // ── Sub-systems ──────────────────────────────────────────────────────────
-    this._gm        = new GraphManager();
+    // Declared here so destroy() is safe to call even before init()
+    this._loop    = null;
+    this._input   = null;
+    this._audio   = null;
+  }
+
+  /**
+   * Build all sub-systems and prepare the game loop.
+   * Must be called (and awaited) before start().
+   *
+   * @param {object|null} graphData  - Parsed API JSON, or null to use mock grid.
+   */
+  async init(graphData = null) {
+    const worldSize = graphData?.meta?.canvas_size ?? MOCK_WORLD_SIZE;
+
+    // ── Sub-systems ────────────────────────────────────────────────────────
+    this._gm        = new GraphManager(graphData);
     this._input     = new InputManager();
-    this._camera    = new Camera(canvas);
-    this._renderer  = new Renderer(canvas, this._gm);
-    this._vehicle   = new Vehicle(this._gm, CENTER_NODE_ID);
+    this._camera    = new Camera(this._canvas, worldSize, worldSize);
+    this._renderer  = new Renderer(this._canvas, this._gm, worldSize, worldSize);
+
+    // Start node: nearest to world centre (500,500 for API; 290,290 for mock)
+    const centre    = worldSize / 2;
+    const startNode = this._gm.getNearestNode(centre, centre);
+    this._vehicle   = new Vehicle(this._gm, startNode.id);
     this._objective = new GameObjective(this._gm);
     this._audio     = new AudioManager();
 
-    // ── Trail ────────────────────────────────────────────────────────────────
+    // ── Trail ──────────────────────────────────────────────────────────────
     /** @type {Array<{x: number, y: number}>} oldest → newest */
     this._trail         = [];
     this._trailLastX    = null;
     this._trailLastY    = null;
 
-    // ── State tracking for event detection ───────────────────────────────────
-    this._prevObjectiveState  = this._objective.state;
-    this._completeFlashTimer  = 0;
+    // ── State tracking ─────────────────────────────────────────────────────
+    this._prevObjectiveState = this._objective.state;
+    this._completeFlashTimer = 0;
 
     this._loop = new GameLoop(
       (dt) => this._update(dt),
       ()     => this._render(),
     );
 
-    // Prime camera
+    // Prime camera at vehicle's initial position
     this._camera.update(this._vehicle.x, this._vehicle.y, 1);
   }
 
   // ─── React-facing API ────────────────────────────────────────────────────────
 
-  start()   { this._loop.start(); }
-  pause()   { this._loop.stop(); }
-  resume()  { this._loop.start(); }
+  start()   { this._loop?.start(); }
+  pause()   { this._loop?.stop(); }
+  resume()  { this._loop?.start(); }
 
   destroy() {
-    this._loop.stop();
-    this._input.destroy();
-    this._audio.destroy();
+    this._loop?.stop();
+    this._input?.destroy();
+    this._audio?.destroy();
   }
 
-  cycleZoom()       { this._camera.cycleZoom(); }
-  pressKey(key)     { this._audio.resume(); this._input.pressKey(key); }
-  releaseKey(key)   { this._input.releaseKey(key); }
+  cycleZoom()       { this._camera?.cycleZoom(); }
+  pressKey(key)     { this._audio?.resume(); this._input?.pressKey(key); }
+  releaseKey(key)   { this._input?.releaseKey(key); }
 
   // ─── Game loop ───────────────────────────────────────────────────────────────
 

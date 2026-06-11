@@ -13,7 +13,8 @@
  * target scale and the target position for a smooth animated feel.
  */
 
-import { GRID_WIDTH, GRID_HEIGHT } from '../data/mockGraph.js';
+// World dimensions are passed in by MiniDeliveryGame after the graph is loaded.
+// Default = 1000 matches the API's canvas_size; mock graph uses 580.
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -36,9 +37,13 @@ const LERP_SPEED = 6; // units per second
 export class Camera {
   /**
    * @param {HTMLCanvasElement} canvas
+   * @param {number} [worldWidth=1000]   - World pixel width  (meta.canvas_size from API)
+   * @param {number} [worldHeight=1000]  - World pixel height
    */
-  constructor(canvas) {
+  constructor(canvas, worldWidth = 1000, worldHeight = 1000) {
     this._canvas      = canvas;
+    this._worldW      = worldWidth;
+    this._worldH      = worldHeight;
     this._zoomLevel   = ZOOM_LEVELS.STREET;
 
     // Current interpolated values (what is actually rendered)
@@ -79,22 +84,22 @@ export class Camera {
 
     // ── Compute target scale ─────────────────────────────────────────────────
     const fraction    = VISIBLE_FRACTION[this._zoomLevel];
-    const scaleX      = cw / (GRID_WIDTH  * fraction);
-    const scaleY      = ch / (GRID_HEIGHT * fraction);
+    const scaleX      = cw / (this._worldW * fraction);
+    const scaleY      = ch / (this._worldH * fraction);
     this._targetScale = Math.min(scaleX, scaleY); // uniform scale, fit both axes
 
     // ── Compute target camera centre ─────────────────────────────────────────
     if (this._zoomLevel === ZOOM_LEVELS.CITY) {
       // Fixed: centre on the entire world
-      this._targetX = GRID_WIDTH  / 2;
-      this._targetY = GRID_HEIGHT / 2;
+      this._targetX = this._worldW / 2;
+      this._targetY = this._worldH / 2;
     } else {
       // Follow vehicle, clamped so we don't show area outside the world
       const halfW = (cw / this._targetScale) / 2;
       const halfH = (ch / this._targetScale) / 2;
 
-      this._targetX = Math.max(halfW, Math.min(GRID_WIDTH  - halfW, vehicleX));
-      this._targetY = Math.max(halfH, Math.min(GRID_HEIGHT - halfH, vehicleY));
+      this._targetX = Math.max(halfW, Math.min(this._worldW - halfW, vehicleX));
+      this._targetY = Math.max(halfH, Math.min(this._worldH - halfH, vehicleY));
     }
 
     // ── Lerp current values towards targets ──────────────────────────────────

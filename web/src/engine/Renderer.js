@@ -16,7 +16,8 @@
  * onto an offscreen canvas and blitted each frame — important for mobile perf.
  */
 
-import { GRID_WIDTH, GRID_HEIGHT } from '../data/mockGraph.js';
+// World dimensions are passed in by MiniDeliveryGame after the graph is loaded.
+// Default = 1000 matches the API's canvas_size; mock graph uses 580.
 
 // ─── Visual constants ─────────────────────────────────────────────────────────
 
@@ -47,10 +48,18 @@ export class Renderer {
    * @param {HTMLCanvasElement} canvas
    * @param {import('./GraphManager').GraphManager} graphManager
    */
-  constructor(canvas, graphManager) {
+  /**
+   * @param {HTMLCanvasElement} canvas
+   * @param {import('./GraphManager').GraphManager} graphManager
+   * @param {number} [worldWidth=1000]   - World pixel width (meta.canvas_size from API)
+   * @param {number} [worldHeight=1000]  - World pixel height
+   */
+  constructor(canvas, graphManager, worldWidth = 1000, worldHeight = 1000) {
     this._canvas  = canvas;
     this._ctx     = canvas.getContext('2d');
     this._gm      = graphManager;
+    this._worldW  = worldWidth;
+    this._worldH  = worldHeight;
 
     /** Offscreen canvas holding the static map (redrawn only on resize). */
     this._mapCanvas = null;
@@ -144,14 +153,14 @@ export class Renderer {
 
     // Create / resize offscreen canvas to world dimensions
     if (!this._mapCanvas) this._mapCanvas = document.createElement('canvas');
-    this._mapCanvas.width  = GRID_WIDTH;
-    this._mapCanvas.height = GRID_HEIGHT;
+    this._mapCanvas.width  = this._worldW;
+    this._mapCanvas.height = this._worldH;
 
     const ctx = this._mapCanvas.getContext('2d');
 
     // Layer 1: city background
     ctx.fillStyle = COLOR_BG;
-    ctx.fillRect(0, 0, GRID_WIDTH, GRID_HEIGHT);
+    ctx.fillRect(0, 0, this._worldW, this._worldH);
 
     // Layer 2: city blocks (pastels)
     this._drawBlocks(ctx);
